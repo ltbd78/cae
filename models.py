@@ -44,19 +44,20 @@ class CAEModel:
 
     def evaluate(self, datasets, **kwargs):
         self.nn_module.eval()
-        mse_dict = dict()
+        outputs = dict()
         for dataset in datasets:
-            dataloader = torch.utils.data.DataLoader(dataset, **kwargs)
+            dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, **kwargs)
             for x, y in dataloader:
-                x = x.to(self.device)
-                x_pred = self.nn_module(x)
-                loss_msees = list(torch.mean((x - x_pred)**2, dim=[1, 2, 3]).cpu().detach().numpy())
-                labels = list(y.cpu().detach().numpy())
-                for i in range(len(labels)):
-                    if labels[i] not in mse_dict.keys():
-                        mse_dict[labels[i]] = []
-                    mse_dict[labels[i]].append(loss_msees[i])
-        return mse_dict
+                    x = x.to(self.device)
+                    x_pred = self.nn_module(x)
+                    mse = torch.mean((x - x_pred)**2, dim=[1, 2, 3])
+                    y = int(y)
+                    if y not in outputs.keys():
+                        outputs[y] = []
+                    outputs[y].append({'x':x.cpu().detach().numpy()[0,:,:,:],
+                                       'x_pred':x_pred.cpu().detach().numpy()[0,:,:,:],
+                                       'mse':float(mse.cpu().detach())})
+        return outputs
     
     def visualize(self, dataset, n):
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=n, shuffle=True)
