@@ -4,7 +4,7 @@ def get_subset(data, labels):
     indices = []
     for i in range(len(data)):
         label = data[i][1]
-        if label not in labels:
+        if label in labels:
             indices.append(i)
     return Subset(data, indices)
 
