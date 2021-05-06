@@ -11,7 +11,8 @@ class CAEModel:
         self.optim = torch.optim.Adam(self.nn_module.parameters(), lr=1e-3)
         self.losses_epoch = []
     
-    def train(self, dataset, n_epochs, verbose=False, **kwargs):
+    # TODO: monitor validation error as well
+    def train(self, dataset, n_epochs, verbose=False, monitor_val=False, **kwargs):
         self.nn_module.train()
         dataloader = torch.utils.data.DataLoader(dataset, **kwargs)
         for epoch in tqdm(range(n_epochs)):
