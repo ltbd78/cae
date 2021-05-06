@@ -53,7 +53,7 @@ class ConvAutoencoder(nn.Module):
             self.activation,
             nn.ConvTranspose2d(8, 4, 3, stride=1, padding=0, output_padding=0, dilation=1),
             self.activation,
-            nn.ConvTranspose2d(4, 1, 5, stride=1, padding=0, output_padding=0, dilation=1)
+            nn.ConvTranspose2d(4, self.C, 5, stride=1, padding=0, output_padding=0, dilation=1)
         )
     
     def forward(self, x):
