@@ -10,7 +10,7 @@ def get_subset(data, labels):
 
 def print_dec(func):
     def wrapper(*args, **kwargs):
-        print('Output Dimension:', func(*args, **kwargs))
+        print('Output:', func(*args, **kwargs))
         return func(*args, **kwargs)
     return wrapper
 
