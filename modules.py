@@ -6,12 +6,13 @@ class ConvAutoencoder(nn.Module):
     """
     CAE with linear latent layer.
     """
-    def __init__(self, Z, C, H, W, stride=1, activation=nn.ReLU()):
+    def __init__(self, Z, C, H, W, hid=[4, 8, 16], stride=1, activation=nn.ReLU()):
         super().__init__()
         self.Z = Z
         self.C = C
         self.H = H
         self.W = W
+        self.hid = hid
         self.stride = stride
         self.activation = activation
         self._plan_model()
@@ -37,42 +38,56 @@ class ConvAutoencoder(nn.Module):
             else:
                 raise ValueError('Only strides of 1 or 2 are supported.')
         
-        self.hk1, self.wk1 = get_kernel(self.H), get_kernel(self.W)
-        self.h1, self.w1 = conv_dim(self.H, self.hk1, self.stride, 0, 1), conv_dim(self.W, self.wk1, self.stride, 0, 1)
-        self.hk2, self.wk2 = get_kernel(self.h1), get_kernel(self.w1)
-        self.h2, self.w2 = conv_dim(self.h1, self.hk2, self.stride, 0, 1), conv_dim(self.w1, self.wk2, self.stride, 0, 1)
-        self.hk3, self.wk3 = get_kernel(self.h2), get_kernel(self.w2)
-        self.h3, self.w3 = conv_dim(self.h2, self.hk3, self.stride, 0, 1), conv_dim(self.w2, self.wk3, self.stride, 0, 1)
+        # Encoder
+        self.kh = [] 
+        self.kw = []
+        h, w = self.H, self.W
+        for i in range(len(self.hid)):
+            kh, kw = get_kernel(h), get_kernel(w)
+            self.kh.append(kh), self.kw.append(kw)
+            h, w = conv_dim(h, kh, self.stride, 0, 1), conv_dim(w, kw, self.stride, 0, 1)
         
-        self.l = 16*self.h3*self.w3
+        # Linear
+        self.l = 16*h*w
         
-        self.h1_, self.w1_ = deconv_dim(self.h3, self.hk3, self.stride, 0, 0, 1), deconv_dim(self.w3, self.wk3, self.stride, 0, 0, 1)
-        self.h2_, self.w2_ = deconv_dim(self.h1_, self.hk2, self.stride, 0, 0, 1), deconv_dim(self.w1_, self.wk2, self.stride, 0, 0, 1)
-        self.h3_, self.w3_ = deconv_dim(self.h2_, self.hk1, self.stride, 0, 0, 1), deconv_dim(self.w2_, self.wk1, self.stride, 0, 0, 1)
+        # Decoder
+        for i in range(1, len(self.hid)+1):
+            h, w = deconv_dim(h, self.kh[-i], self.stride, 0, 0, 1), deconv_dim(w, self.kw[-i], self.stride, 0, 0, 1)
         
-        assert (self.H == self.h3_) and (self.W == self.w3_)
+        # Ensuring Input Dimensions Equals Output Dimensions
+        assert (self.H == h) and (self.W == w)
         
     def _build_model(self):
-        self.encoder = nn.Sequential(
-            # BatchNorm2d?
-            nn.Conv2d(self.C, 4, (self.hk1, self.wk1), stride=self.stride, padding=0, dilation=1),
-            self.activation,
-            nn.Conv2d(4, 8, (self.hk2, self.wk2), stride=self.stride, padding=0, dilation=1),
-            self.activation,
-            nn.Conv2d(8, 16, (self.hk3, self.wk3), stride=self.stride, padding=0, dilation=1)
-        )
+        # Encoder
+        modules = []
+        in_channels = self.C
+        for i in range(len(self.hid)):
+            modules.append(
+                nn.Sequential(
+                    nn.Conv2d(in_channels, self.hid[i], (self.kh[i], self.kw[i]), stride=self.stride, padding=0, dilation=1),
+                    nn.BatchNorm2d(self.hid[i]),
+                    self.activation
+                )
+            )
+            in_channels = self.hid[i]
+        self.encoder = nn.Sequential(*modules)
         
-        # Dropout?
+        # Linear
         self.fc1 = nn.Linear(self.l, self.Z)
         self.fc2 = nn.Linear(self.Z, self.l)
         
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(16, 8, (self.hk3, self.wk3), stride=self.stride, padding=0, output_padding=0, dilation=1),
-            self.activation,
-            nn.ConvTranspose2d(8, 4, (self.hk2, self.wk2), stride=self.stride, padding=0, output_padding=0, dilation=1),
-            self.activation,
-            nn.ConvTranspose2d(4, self.C, (self.hk1, self.wk1), stride=self.stride, padding=0, output_padding=0, dilation=1)
-        )
+        # Decoder
+        modules = []
+        for i in range(1, len(self.hid)+1):
+            modules.append(
+                nn.Sequential(
+                    nn.ConvTranspose2d(in_channels, self.hid[-i], (self.kh[-i], self.kw[-i]), stride=self.stride, padding=0, output_padding=0, dilation=1),
+                    nn.BatchNorm2d(self.hid[-i]),
+                    self.activation
+                )
+            )
+            in_channels = self.hid[-i]
+        self.decoder = nn.Sequential(*modules)
     
     def forward(self, x):
         x = self.encoder(x)
