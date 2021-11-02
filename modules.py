@@ -48,7 +48,8 @@ class ConvAutoencoder(nn.Module):
             h, w = conv_dim(h, kh, self.stride, 0, 1), conv_dim(w, kw, self.stride, 0, 1)
         
         # Linear
-        self.l = 16*h*w
+        self.l = self.hid[-1]*h*w
+        assert(self.l != 0)
         
         # Decoder
         for i in range(1, len(self.hid)+1):
@@ -78,16 +79,17 @@ class ConvAutoencoder(nn.Module):
         
         # Decoder
         modules = []
-        for i in range(1, len(self.hid)+1):
+        out_channels = self.C
+        for i in range(len(self.hid)):
             modules.append(
                 nn.Sequential(
-                    nn.ConvTranspose2d(in_channels, self.hid[-i], (self.kh[-i], self.kw[-i]), stride=self.stride, padding=0, output_padding=0, dilation=1),
-                    nn.BatchNorm2d(self.hid[-i]),
+                    nn.ConvTranspose2d(self.hid[i], out_channels, (self.kh[i], self.kw[i]), stride=self.stride, padding=0, output_padding=0, dilation=1),
+                    nn.BatchNorm2d(out_channels),
                     self.activation
                 )
             )
-            in_channels = self.hid[-i]
-        self.decoder = nn.Sequential(*modules)
+            out_channels = self.hid[i]
+        self.decoder = nn.Sequential(*modules[::-1])
     
     def forward(self, x):
         x = self.encoder(x)
